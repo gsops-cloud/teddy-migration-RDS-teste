@@ -1,0 +1,52 @@
+name: Database Migration
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'migrations/**'
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  MIGRATION_SCRIPT: scripts/migrate.sh
+
+jobs:
+  run-migration:
+    name: Executar Migração
+    runs-on: ubuntu-latest
+    environment: staging
+    
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+
+      - name: Configurar AWS CLI
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Instalar dependências
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client mysql-client
+
+      - name: Configurar variáveis de ambiente
+        run: |
+          echo "DB_HOST=${{ secrets.DB_HOST }}" >> $GITHUB_ENV
+          echo "DB_PORT=${{ secrets.DB_PORT }}" >> $GITHUB_ENV
+          echo "DB_NAME=${{ secrets.DB_NAME }}" >> $GITHUB_ENV
+          echo "DB_USER=${{ secrets.DB_USER }}" >> $GITHUB_ENV
+          echo "SSM_INSTANCE_ID=${{ secrets.SSM_INSTANCE_ID }}" >> $GITHUB_ENV
+          if [ -n "${{ secrets.DB_PASSWORD }}" ]; then
+            echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> $GITHUB_ENV
+          fi
+
+      - name: Executar migrações
+        run: |
+          chmod +x ${{ env.MIGRATION_SCRIPT }}
+          ${{ env.MIGRATION_SCRIPT }}
